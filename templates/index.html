@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pneumonia Detection System</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success-color: #16a34a;
+            --error-color: #dc2626;
+            --gray-light: #f3f4f6;
+            --gray-dark: #4b5563;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f9fafb;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .header p {
+            color: var(--gray-dark);
+            font-size: 1.1rem;
+        }
+
+        .upload-box {
+            background: white;
+            border: 2px dashed var(--primary-color);
+            border-radius: 1rem;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .upload-box:hover {
+            background: var(--gray-light);
+            border-color: var(--primary-dark);
+        }
+
+        .upload-box.dragover {
+            background: var(--gray-light);
+            border-color: var(--primary-dark);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .upload-text {
+            color: var(--gray-dark);
+            margin-bottom: 1rem;
+        }
+
+        .btn-predict {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            display: none;
+        }
+
+        .btn-predict:hover {
+            background: var(--primary-dark);
+        }
+
+        .loader {
+            display: none;
+            margin: 2rem auto;
+            border: 4px solid var(--gray-light);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result-container {
+            display: none;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+
+        .result-normal {
+            background: #dcfce7;
+            color: var(--success-color);
+        }
+
+        .result-pneumonia {
+            background: #fee2e2;
+            color: var(--error-color);
+        }
+
+        .preview-image {
+            max-width: 300px;
+            max-height: 300px;
+            margin: 1rem auto;
+            border-radius: 0.5rem;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Pneumonia Detection System</h1>
+            <p>Upload a chest X-ray image for pneumonia detection</p>
+        </div>
+
+        <div class="upload-box" onclick="triggerFileSelect()">
+            <div class="upload-icon">📁</div>
+            <p class="upload-text">Drop image here or click to select</p>
+            <input type="file" id="imageUpload" accept="image/*" style="display: none">
+        </div>
+
+        <img id="preview" class="preview-image" alt="Preview">
+        <div class="loader"></div>
+        <button class="btn-predict" onclick="predict()">Analyze Image</button>
+        <div class="result-container"></div>
+    </div>
+
+    <script>
+        // File upload handling
+        const uploadBox = document.querySelector('.upload-box');
+        const imageUpload = document.getElementById('imageUpload');
+        const preview = document.getElementById('preview');
+        const predictBtn = document.querySelector('.btn-predict');
+        const loader = document.querySelector('.loader');
+        const resultContainer = document.querySelector('.result-container');
+
+        function triggerFileSelect() {
+            imageUpload.click();
+        }
+
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        });
+
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('dragover');
+        });
+
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        });
+
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            handleFile(file);
+        });
+
+        function handleFile(file) {
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    predictBtn.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function predict() {
+            try {
+                predictBtn.style.display = 'none';
+                loader.style.display = 'block';
+                resultContainer.style.display = 'none';
+
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(preview.src)
+                });
+
+                const data = await response.json();
+                
+                resultContainer.textContent = `Result: ${data.result}`;
+                resultContainer.className = 'result-container ' + 
+                    (data.result === 'NORMAL' ? 'result-normal' : 'result-pneumonia');
+                resultContainer.style.display = 'block';
+            } catch (error) {
+                console.error('Error:', error);
+                resultContainer.textContent = 'An error occurred during analysis';
+                resultContainer.className = 'result-container result-error';
+                resultContainer.style.display = 'block';
+            } finally {
+                loader.style.display = 'none';
+                predictBtn.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
